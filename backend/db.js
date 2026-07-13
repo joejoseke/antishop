@@ -1,7 +1,7 @@
-const sqlite3 = require('sqlite3').verbose();
-const path = require('path');
-const fs = require('fs');
+const mysql = require('mysql2');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 // Ensure directories exist
 const dataDir = path.join(__dirname, 'data');
@@ -31,46 +31,193 @@ Object.entries(mockFiles).forEach(([filename, content]) => {
   }
 });
 
-const dbPath = path.join(dataDir, 'shop.db');
-const db = new sqlite3.Database(dbPath);
+// Configure MySQL connection pool
+const pool = mysql.createPool({
+  host: process.env.DB_HOST || '37.139.17.247',
+  user: 'zgfqgdok_sa',
+  password: 'Brane@2025#',
+  database: 'zqfqgdok_shopdb',
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
+});
+
+// SQL translator utility
+function translateSql(sql) {
+  if (typeof sql !== 'string') return sql;
+  let translated = sql.replace(/INSERT OR REPLACE INTO/gi, 'REPLACE INTO');
+  translated = translated.replace(/\bwhere\s+key\b/gi, 'WHERE `key`');
+  translated = translated.replace(/\bsettings\s*\(\s*key\b/gi, 'settings (`key`');
+  translated = translated.replace(/\bselect\s+key\s*,/gi, 'SELECT `key`,');
+  translated = translated.replace(/\border\s+by\s+key\b/gi, 'ORDER BY `key`');
+  translated = translated.replace(/\bkey\s*=\s*\?/gi, '`key` = ?');
+  return translated;
+}
+
+// SQLite compatibility layer
+const db = {
+  get: function(sql, params, callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+    const translated = translateSql(sql);
+    pool.query(translated, params, (err, results) => {
+      if (err) {
+        if (callback) callback(err);
+      } else {
+        if (callback) callback(null, results && results.length > 0 ? results[0] : null);
+      }
+    });
+  },
+
+  all: function(sql, params, callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+    const translated = translateSql(sql);
+    pool.query(translated, params, (err, results) => {
+      if (err) {
+        if (callback) callback(err);
+      } else {
+        if (callback) callback(null, results || []);
+      }
+    });
+  },
+
+  run: function(sql, params, callback) {
+    if (typeof params === 'function') {
+      callback = params;
+      params = [];
+    }
+    const translated = translateSql(sql);
+    pool.query(translated, params, function(err, results) {
+      if (err) {
+        if (callback) callback(err);
+      } else {
+        if (callback) {
+          const context = results ? { lastID: results.insertId, changes: results.affectedRows } : {};
+          callback.call(context, null);
+        }
+      }
+    });
+  },
+
+  prepare: function(sql) {
+    const translated = translateSql(sql);
+    return {
+      run: function(...args) {
+        let params = args;
+        let cb = null;
+        if (typeof args[args.length - 1] === 'function') {
+          cb = params.pop();
+        }
+        if (params.length === 1 && Array.isArray(params[0])) {
+          params = params[0];
+        }
+        pool.query(translated, params, function(err, results) {
+          if (cb) {
+            const context = results ? { lastID: results.insertId, changes: results.affectedRows } : {};
+            cb.call(context, err);
+          }
+        });
+      },
+      finalize: function(cb) {
+        if (cb) cb();
+      }
+    };
+  },
+
+  serialize: function(callback) {
+    if (callback) callback();
+  }
+};
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
 
-// Run database setup
-db.serialize(() => {
+// Initialise DB Schema in serial sequence
+const queries = [
   // 1. Admin Users Table
-  db.run(`CREATE TABLE IF NOT EXISTS admin_users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE,
+  `CREATE TABLE IF NOT EXISTS admin_users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) UNIQUE,
     password TEXT
-  )`);
+  )`,
+  
+  // 2. Products Table
+  `CREATE TABLE IF NOT EXISTS products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(255),
+    description TEXT,
+    category VARCHAR(100),
+    price DECIMAL(10,2),
+    image_url TEXT,
+    download_file VARCHAR(255),
+    license_keys TEXT,
+    system_req TEXT
+  )`,
 
-  // Seed default admin: admin / admin123
+  // 3. Orders Table
+  `CREATE TABLE IF NOT EXISTS orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id VARCHAR(255) UNIQUE,
+    email VARCHAR(255),
+    phone VARCHAR(50),
+    total DECIMAL(10,2),
+    status VARCHAR(50),
+    payment_method VARCHAR(50),
+    payment_ref VARCHAR(255),
+    download_count INT DEFAULT 0,
+    created_at VARCHAR(100)
+  )`,
+
+  // 4. Order Items Table
+  `CREATE TABLE IF NOT EXISTS order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    order_id VARCHAR(255),
+    product_id INT,
+    product_title VARCHAR(255),
+    price DECIMAL(10,2),
+    license_key VARCHAR(255)
+  )`,
+
+  // 5. Payment Settings Table
+  `CREATE TABLE IF NOT EXISTS settings (
+    \`key\` VARCHAR(255) PRIMARY KEY,
+    value TEXT
+  )`
+];
+
+function runInitQueries(index = 0) {
+  if (index >= queries.length) {
+    seedData();
+    return;
+  }
+  pool.query(queries[index], (err) => {
+    if (err) {
+      console.error(`Error initializing schema query ${index}:`, err.message);
+    }
+    runInitQueries(index + 1);
+  });
+}
+
+function seedData() {
+  // Seed Default Admin
   db.get("SELECT * FROM admin_users WHERE username = 'admin'", (err, row) => {
     if (err) console.error(err);
     if (!row) {
       const defaultPass = hashPassword('admin123');
-      db.run("INSERT INTO admin_users (username, password) VALUES (?, ?)", ['admin', defaultPass]);
-      console.log('Default admin seeded (admin/admin123)');
+      db.run("INSERT INTO admin_users (username, password) VALUES (?, ?)", ['admin', defaultPass], (err) => {
+        if (err) console.error('Error seeding admin user:', err.message);
+        else console.log('Default admin seeded (admin/admin123)');
+      });
     }
   });
 
-  // 2. Products Table
-  db.run(`CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    title TEXT,
-    description TEXT,
-    category TEXT,
-    price REAL,
-    image_url TEXT,
-    download_file TEXT,
-    license_keys TEXT,
-    system_req TEXT
-  )`);
-
-  // Seed initial products if none exist
+  // Seed Initial Products
   db.get("SELECT COUNT(*) as count FROM products", (err, row) => {
     if (err) console.error(err);
     if (row && row.count === 0) {
@@ -182,67 +329,33 @@ db.serialize(() => {
     }
   });
 
-  // 3. Orders Table
-  db.run(`CREATE TABLE IF NOT EXISTS orders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id TEXT UNIQUE,
-    email TEXT,
-    phone TEXT,
-    total REAL,
-    status TEXT,
-    payment_method TEXT,
-    payment_ref TEXT,
-    download_count INTEGER DEFAULT 0,
-    created_at TEXT
-  )`);
-
-  // 4. Order Items Table
-  db.run(`CREATE TABLE IF NOT EXISTS order_items (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    order_id TEXT,
-    product_id INTEGER,
-    product_title TEXT,
-    price REAL,
-    license_key TEXT
-  )`);
-
-  // 5. Payment Settings Table
-  db.run(`CREATE TABLE IF NOT EXISTS settings (
-    key TEXT UNIQUE,
-    value TEXT
-  )`);
-
-  // Seed default configuration settings if they don't exist
-  const defaultSettings = {
-    // M-Pesa Daraja
-    'MPESA_CONSUMER_KEY': 'OX1elcYFod17uQfvMj6AWRifd7kpEhBIzc8QMhMAg00ZxTtv',
-    'MPESA_CONSUMER_SECRET': '9iOLeWLBAnS6n3GtbzD7cUJsVHYk8I4sDBP4bCsHGxFxMpQuTyJ874IR5nsHuQ9S',
-    'MPESA_SHORTCODE': '6211272',
-    'MPESA_PASSKEY': 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
-    'MPESA_CALLBACK_URL': 'http://localhost:5000/api/payments/mpesa/callback',
-    'MPESA_ENV': 'sandbox',
-    
-    // PayPal
-    'PAYPAL_CLIENT_ID': '',
-    'PAYPAL_CLIENT_SECRET': '',
-    'PAYPAL_ENV': 'sandbox',
-
-    // Paystack
-    'PAYSTACK_PUBLIC_KEY': '',
-    'PAYSTACK_SECRET_KEY': '',
-
-    // Kopo Kopo
-    'KOPOKOPO_CLIENT_ID': '',
-    'KOPOKOPO_CLIENT_SECRET': '',
-    'KOPOKOPO_API_KEY': '',
-    'KOPOKOPO_ENV': 'sandbox',
-    'KOPOKOPO_SERVICE_CO_REF': ''
-  };
-
+  // Seed Default Configuration Settings
   db.get("SELECT COUNT(*) as count FROM settings", (err, row) => {
     if (err) console.error(err);
     if (row && row.count === 0) {
-      const stmt = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
+      const defaultSettings = {
+        'MPESA_CONSUMER_KEY': 'OX1elcYFod17uQfvMj6AWRifd7kpEhBIzc8QMhMAg00ZxTtv',
+        'MPESA_CONSUMER_SECRET': '9iOLeWLBAnS6n3GtbzD7cUJsVHYk8I4sDBP4bCsHGxFxMpQuTyJ874IR5nsHuQ9S',
+        'MPESA_SHORTCODE': '6211272',
+        'MPESA_PASSKEY': 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
+        'MPESA_CALLBACK_URL': 'http://localhost:5000/api/payments/mpesa/callback',
+        'MPESA_ENV': 'sandbox',
+        
+        'PAYPAL_CLIENT_ID': '',
+        'PAYPAL_CLIENT_SECRET': '',
+        'PAYPAL_ENV': 'sandbox',
+
+        'PAYSTACK_PUBLIC_KEY': '',
+        'PAYSTACK_SECRET_KEY': '',
+
+        'KOPOKOPO_CLIENT_ID': '',
+        'KOPOKOPO_CLIENT_SECRET': '',
+        'KOPOKOPO_API_KEY': '',
+        'KOPOKOPO_ENV': 'sandbox',
+        'KOPOKOPO_SERVICE_CO_REF': ''
+      };
+
+      const stmt = db.prepare("INSERT INTO settings (`key`, value) VALUES (?, ?)");
       Object.entries(defaultSettings).forEach(([k, v]) => {
         stmt.run(k, v);
       });
@@ -250,11 +363,14 @@ db.serialize(() => {
       console.log('Payment configurations initialized.');
     }
   });
-});
+}
+
+// Start database initialization
+runInitQueries(0);
 
 function getSetting(key) {
   return new Promise((resolve, reject) => {
-    db.get("SELECT value FROM settings WHERE key = ?", [key], (err, row) => {
+    db.get("SELECT value FROM settings WHERE `key` = ?", [key], (err, row) => {
       if (err) reject(err);
       else resolve(row ? row.value : null);
     });
@@ -263,7 +379,7 @@ function getSetting(key) {
 
 function getSettings() {
   return new Promise((resolve, reject) => {
-    db.all("SELECT key, value FROM settings", (err, rows) => {
+    db.all("SELECT `key`, value FROM settings", (err, rows) => {
       if (err) reject(err);
       else {
         const config = {};
