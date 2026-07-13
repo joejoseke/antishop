@@ -120,7 +120,7 @@ function Storefront({ addToCart }) {
                     </p>
                     
                     <div className="product-meta">
-                      <div className="product-price">${p.price.toFixed(2)}</div>
+                      <div className="product-price">KSh {p.price.toFixed(2)}</div>
                       <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button className="btn btn-outline" style={{ padding: '0.5rem 1rem' }} onClick={() => setSelectedProduct(p)}>
                           Details
@@ -151,7 +151,7 @@ function Storefront({ addToCart }) {
               
               <div className="product-detail-info">
                 <h2 className="product-detail-title">{selectedProduct.title}</h2>
-                <div className="product-detail-price">${selectedProduct.price.toFixed(2)}</div>
+                <div className="product-detail-price">KSh {selectedProduct.price.toFixed(2)}</div>
                 
                 <p className="product-detail-description">
                   {selectedProduct.description}

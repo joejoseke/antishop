@@ -20,6 +20,11 @@ app.use(express.json());
 // Serve static frontend files if built (for production deployment, though we run dev servers separately)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Friendly root route
+app.get('/', (req, res) => {
+  res.json({ status: 'active', message: 'Brane Shop API Server is running successfully.' });
+});
+
 // Helper to generate unique order IDs
 function generateOrderId() {
   const date = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 8);
@@ -279,46 +284,8 @@ async function handlePaymentGateway(orderId, amount, method, phone, email, res) 
         });
       }
 
-      case 'paypal': {
-        const paypalOrder = await paypalAdapter.createOrder(orderId, amount);
-        // Save paypal order id as reference
-        db.run("UPDATE orders SET payment_ref = ? WHERE order_id = ?", [paypalOrder.id, orderId]);
-        return res.json({
-          orderId,
-          paymentMethod: 'paypal',
-          paypalOrderId: paypalOrder.id,
-          isMock: paypalOrder.isMock || false
-        });
-      }
-
-      case 'paystack': {
-        const paystackRes = await paystackAdapter.initializeTransaction(orderId, amount, email);
-        // Save access code as reference
-        const accessCode = paystackRes.data.access_code || '';
-        db.run("UPDATE orders SET payment_ref = ? WHERE order_id = ?", [orderId, orderId]); // paystack references orderId directly
-        return res.json({
-          orderId,
-          paymentMethod: 'paystack',
-          authorizationUrl: paystackRes.data.authorization_url,
-          accessCode: accessCode,
-          isMock: paystackRes.isMock || false
-        });
-      }
-
-      case 'kopokopo': {
-        const k2Res = await kopokopoAdapter.initiatePayment({ orderId, amount, phone, email });
-        // Save status location as reference
-        db.run("UPDATE orders SET payment_ref = ? WHERE order_id = ?", [k2Res.location, orderId]);
-        return res.json({
-          orderId,
-          paymentMethod: 'kopokopo',
-          location: k2Res.location,
-          isMock: k2Res.isMock || false
-        });
-      }
-
       default:
-        return res.status(400).json({ error: 'Unsupported payment method' });
+        return res.status(400).json({ error: 'Unsupported payment method. Only M-Pesa is enabled.' });
     }
   } catch (err) {
     console.error('Payment gateway error:', err);

@@ -161,7 +161,7 @@ function AppContent({
                     <img src={item.image_url} alt={item.title} className="cart-item-img" />
                     <div className="cart-item-info">
                       <div className="cart-item-title">{item.title}</div>
-                      <div className="cart-item-price">${(item.price * item.qty).toFixed(2)}</div>
+                      <div className="cart-item-price">KSh {(item.price * item.qty).toFixed(2)}</div>
                     </div>
                     <div className="cart-qty-controls">
                       <button className="cart-qty-btn" onClick={() => updateQty(item.id, -1)}>-</button>
@@ -177,7 +177,7 @@ function AppContent({
             <div className="cart-footer">
               <div className="cart-total-row">
                 <span className="cart-total-label">Subtotal</span>
-                <span className="cart-total-val">${cartTotal.toFixed(2)}</span>
+                <span className="cart-total-val">KSh {cartTotal.toFixed(2)}</span>
               </div>
               {cart.length > 0 ? (
                 <button

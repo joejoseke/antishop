@@ -220,7 +220,7 @@ function AdminDashboard() {
             <div className="stats-grid">
               <div className="stat-card">
                 <span className="stat-label">Total Revenue</span>
-                <span className="stat-val revenue">${totalRevenue.toFixed(2)}</span>
+                <span className="stat-val revenue">KSh {totalRevenue.toFixed(2)}</span>
               </div>
               <div className="stat-card">
                 <span className="stat-label">Paid Purchases</span>
@@ -232,7 +232,7 @@ function AdminDashboard() {
               </div>
               <div className="stat-card">
                 <span className="stat-label">Average Ticket Size</span>
-                <span className="stat-val" style={{ color: '#fff' }}>${avgOrderVal.toFixed(2)}</span>
+                <span className="stat-val" style={{ color: '#fff' }}>KSh {avgOrderVal.toFixed(2)}</span>
               </div>
             </div>
 
@@ -281,7 +281,7 @@ function AdminDashboard() {
                             <g key={idx}>
                               <circle cx={p.x} cy={p.y} r="5" fill="var(--primary)" stroke="#fff" strokeWidth="1.5" />
                               <text x={p.x} y={p.y - 12} fill="var(--text-muted)" fontSize="9" textAnchor="middle">
-                                ${p.total.toFixed(0)}
+                                KSh {p.total.toFixed(0)}
                               </text>
                               <text x={p.x} y="190" fill="var(--text-muted)" fontSize="8" textAnchor="middle">
                                 {p.id.substring(12) || p.id}
@@ -328,7 +328,7 @@ function AdminDashboard() {
                       </td>
                       <td style={{ fontWeight: 600 }}>{p.title}</td>
                       <td style={{ textTransform: 'capitalize' }}>{p.category}</td>
-                      <td style={{ color: 'var(--secondary)', fontWeight: 700 }}>${p.price.toFixed(2)}</td>
+                      <td style={{ color: 'var(--secondary)', fontWeight: 700 }}>KSh {p.price.toFixed(2)}</td>
                       <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{p.download_file}</td>
                       <td style={{ textAlign: 'right' }}>
                         <button className="btn btn-outline" style={{ padding: '0.35rem 0.75rem', fontSize: '0.75rem', marginRight: '0.5rem' }} onClick={() => handleOpenEditProduct(p)}>
@@ -367,7 +367,7 @@ function AdminDashboard() {
                       </div>
                       
                       <div className="form-group">
-                        <label className="form-label">Price (USD)</label>
+                        <label className="form-label">Price (KES)</label>
                         <input
                           type="number"
                           step="0.01"
@@ -529,7 +529,7 @@ function AdminDashboard() {
                     <tr key={o.id}>
                       <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>{o.order_id}</td>
                       <td>{o.email}</td>
-                      <td style={{ color: 'var(--secondary)', fontWeight: 700 }}>${o.total.toFixed(2)}</td>
+                      <td style={{ color: 'var(--secondary)', fontWeight: 700 }}>KSh {o.total.toFixed(2)}</td>
                       <td style={{ textTransform: 'uppercase', fontSize: '0.8rem' }}>{o.payment_method}</td>
                       <td>
                         <span className={`status-badge ${o.status}`}>

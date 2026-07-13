@@ -5,7 +5,7 @@ function Checkout({ cart, cartTotal, clearCart }) {
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('mpesa'); // mpesa, paypal, paystack, kopokopo
+  const [paymentMethod] = useState('mpesa'); // mpesa, paypal, paystack, kopokopo
   const [loading, setLoading] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [orderId, setOrderId] = useState('');
@@ -88,50 +88,6 @@ function Checkout({ cart, cartTotal, clearCart }) {
       if (paymentMethod === 'mpesa') {
         setStatusMessage(`M-Pesa STK Push sent to ${phone}. Enter your M-Pesa PIN on your phone to complete purchase.`);
         setIsPolling(true);
-      } 
-      else if (paymentMethod === 'kopokopo') {
-        setStatusMessage(`Kopo Kopo payment request sent to ${phone}. Please complete payment on your device.`);
-        setIsPolling(true);
-      } 
-      else if (paymentMethod === 'paystack') {
-        setStatusMessage('Redirecting to Paystack checkout portal...');
-        // For real Paystack: redirects to paystack checkout, then comes back to checkout/success?reference=orderId
-        // In mock mode, the URL returned by the backend points to our success page immediately
-        setTimeout(() => {
-          window.location.href = data.authorizationUrl;
-        }, 1500);
-      } 
-      else if (paymentMethod === 'paypal') {
-        setStatusMessage('Establishing secure connection with PayPal...');
-        // Open PayPal mock approval window or capture mock order
-        if (data.isMock) {
-          setTimeout(async () => {
-            setStatusMessage('Simulating PayPal customer authentication...');
-            try {
-              const captureRes = await fetch('http://localhost:5000/api/payments/paypal/capture', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ paypalOrderId: data.paypalOrderId, orderId: data.orderId })
-              });
-              const captureData = await captureRes.json();
-              if (captureData.status === 'success') {
-                clearCart();
-                navigate(`/checkout/success?orderId=${data.orderId}`);
-              } else {
-                setLoading(false);
-                setStatusMessage('Mock PayPal payment failed.');
-              }
-            } catch (err) {
-              setLoading(false);
-              setStatusMessage('Connection failed.');
-            }
-          }, 3000);
-        } else {
-          // In real setup, we would load PayPal Buttons SDK.
-          // For sandbox testing in this panel, we render a button below to trigger backend capture manually:
-          setStatusMessage('API keys found. Click the button below to authorize the transaction.');
-          // (The UI will render an authorization action button)
-        }
       }
     } catch (err) {
       setLoading(false);
@@ -156,30 +112,7 @@ function Checkout({ cart, cartTotal, clearCart }) {
                   {mockModeText}
                 </p>
               )}
-              {paymentMethod === 'paypal' && !isPolling && orderId && !orderId.startsWith('MOCK-') && (
-                <div style={{ marginTop: '2rem' }}>
-                  <button 
-                    className="btn btn-primary"
-                    onClick={async () => {
-                      setStatusMessage('Capturing live PayPal order...');
-                      const captureRes = await fetch('http://localhost:5000/api/payments/paypal/capture', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ paypalOrderId: orderId, orderId })
-                      });
-                      const captureData = await captureRes.json();
-                      if (captureData.status === 'success') {
-                        clearCart();
-                        navigate(`/checkout/success?orderId=${orderId}`);
-                      } else {
-                        setStatusMessage('Payment capture failed.');
-                      }
-                    }}
-                  >
-                    Simulate PayPal Customer Approval
-                  </button>
-                </div>
-              )}
+
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
@@ -195,63 +128,31 @@ function Checkout({ cart, cartTotal, clearCart }) {
                 />
               </div>
 
-              {(paymentMethod === 'mpesa' || paymentMethod === 'kopokopo') && (
-                <div className="form-group">
-                  <label className="form-label">M-Pesa Mobile Number</label>
-                  <input
-                    type="tel"
-                    className="form-input"
-                    required
-                    placeholder="e.g. 254712345678"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                  />
-                  <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                    Must begin with Country Code (e.g., 254 for Kenya).
-                  </small>
-                </div>
-              )}
+              <div className="form-group">
+                <label className="form-label">M-Pesa Mobile Number</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  required
+                  placeholder="e.g. 254712345678"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                <small style={{ color: 'var(--text-muted)', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                  Must begin with Country Code (e.g., 254 for Kenya).
+                </small>
+              </div>
 
               <div style={{ margin: '2rem 0' }}>
-                <label className="form-label">Select Payment Gateway</label>
-                
-                <div className="payment-methods-grid">
-                  <div 
-                    className={`payment-method-card ${paymentMethod === 'mpesa' ? 'active' : ''}`}
-                    onClick={() => setPaymentMethod('mpesa')}
-                  >
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/512px-M-PESA_LOGO-01.svg.png" alt="M-Pesa" className="payment-method-logo" />
-                    <span className="payment-method-name">M-Pesa Daraja</span>
-                  </div>
-
-                  <div 
-                    className={`payment-method-card ${paymentMethod === 'paypal' ? 'active' : ''}`}
-                    onClick={() => setPaymentMethod('paypal')}
-                  >
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" className="payment-method-logo" />
-                    <span className="payment-method-name">PayPal</span>
-                  </div>
-
-                  <div 
-                    className={`payment-method-card ${paymentMethod === 'paystack' ? 'active' : ''}`}
-                    onClick={() => setPaymentMethod('paystack')}
-                  >
-                    <img src="https://s3-eu-west-1.amazonaws.com/pstk-integration-logos/paystack_logo.png" alt="Paystack" className="payment-method-logo" />
-                    <span className="payment-method-name">Paystack / Cards</span>
-                  </div>
-
-                  <div 
-                    className={`payment-method-card ${paymentMethod === 'kopokopo' ? 'active' : ''}`}
-                    onClick={() => setPaymentMethod('kopokopo')}
-                  >
-                    <span style={{ fontSize: '1.5rem' }}>🇰🇪</span>
-                    <span className="payment-method-name">Kopo Kopo</span>
-                  </div>
+                <label className="form-label">Payment Gateway</label>
+                <div className="payment-method-card active" style={{ cursor: 'default' }}>
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/1/15/M-PESA_LOGO-01.svg/512px-M-PESA_LOGO-01.svg.png" alt="M-Pesa" className="payment-method-logo" />
+                  <span className="payment-method-name">M-Pesa Daraja STK Push</span>
                 </div>
               </div>
 
               <button type="submit" className="btn btn-primary pulse-primary" style={{ width: '100%', padding: '1rem' }}>
-                Secure Checkout - ${(cartTotal).toFixed(2)} USD 🔒
+                Secure Checkout - KSh {(cartTotal).toFixed(2)} 🔒
               </button>
             </form>
           )}
@@ -268,7 +169,7 @@ function Checkout({ cart, cartTotal, clearCart }) {
                   <span style={{ fontWeight: 600 }}>{item.title}</span>
                   <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginLeft: '0.5rem' }}>x{item.qty}</span>
                 </div>
-                <div style={{ fontWeight: 700 }}>${(item.price * item.qty).toFixed(2)}</div>
+                <div style={{ fontWeight: 700 }}>KSh {(item.price * item.qty).toFixed(2)}</div>
               </div>
             ))}
           </div>
@@ -280,12 +181,12 @@ function Checkout({ cart, cartTotal, clearCart }) {
           
           <div className="summary-item-row">
             <span>Platform Tax / VAT</span>
-            <span>$0.00</span>
+            <span>KSh 0.00</span>
           </div>
 
           <div className="summary-item-row total">
             <span>Total Payable</span>
-            <span>${cartTotal.toFixed(2)} USD</span>
+            <span>KSh {cartTotal.toFixed(2)}</span>
           </div>
         </div>
 

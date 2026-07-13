@@ -105,7 +105,7 @@ function Downloads() {
                   <div className="download-meta-info">
                     <span className="download-product-title">{item.product_title}</span>
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      Licence Cost: ${item.price.toFixed(2)}
+                      Licence Cost: KSh {item.price.toFixed(2)}
                     </span>
                     <div>
                       <span className="download-key-badge">
