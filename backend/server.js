@@ -21,7 +21,7 @@ app.use(express.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Friendly root route
-app.get(['/', '/api'], (req, res) => {
+app.get(['/', '/api','/api/'], (req, res) => {
   res.json({ status: 'active', message: 'Brane Shop API Server is running successfully.' });
 });
 
